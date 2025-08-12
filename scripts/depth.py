@@ -8,14 +8,14 @@ import cv2
 
 # Load models
 model = UniDepthV2.from_pretrained("lpiccinelli/unidepth-v2-vitl14")
-yolo_model = YOLO("yolov8n.pt")
+yolo_model = YOLO("yolo_models/yolov8n.pt")
 
 # Move to CUDA, if any
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(device)
 
 # Load video
-video_path = "Drone.mp4"
+video_path = "videos/Drone.mp4"
 cap = cv2.VideoCapture(video_path)
 
 if not cap.isOpened():
@@ -27,7 +27,7 @@ width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
 # Prepare output
-output_path = "output.mp4"
+output_path = "output/output_video.mp4"
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
