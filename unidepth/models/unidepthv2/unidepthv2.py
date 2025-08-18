@@ -237,7 +237,8 @@ class UniDepthV2(
         return losses
 
     @torch.no_grad()
-    @torch.autocast(device_type="cuda", enabled=True, dtype=torch.float16)
+    #@torch.autocast(device_type="cuda", enabled=True, dtype=torch.float16)
+    @torch.autocast(device_type="cuda", enabled=False)
     def infer(
         self,
         rgb: torch.Tensor,
