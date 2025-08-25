@@ -1,0 +1,106 @@
+import torch
+import numpy as np
+import cv2
+from ultralytics import YOLO
+from unidepth.models import UniDepthV2
+import os
+from pathlib import Path
+
+# Variables
+video_path = "videos/Waterloo.mp4"
+output_fps = 10.0
+conf = 0.25
+
+# Load models
+model = UniDepthV2.from_pretrained("lpiccinelli/unidepth-v2-vitl14")
+yolo_model = YOLO("yolo_models/yolo11n-uav-vehicle-bbox.pt")  # fine-tuned
+
+# Jetson-friendly settings
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = model.to(device).eval()
+try:
+    yolo_model.to(device)
+except Exception:
+    pass 
+try:
+    model.resolution_level = 5
+except Exception:
+    pass
+torch.set_grad_enabled(False)               
+torch.backends.cudnn.benchmark = True        
+torch.backends.cuda.matmul.allow_tf32 = True 
+torch.backends.cudnn.allow_tf32 = True
+
+# Load video
+cap = cv2.VideoCapture(video_path)
+if not cap.isOpened():
+    raise IOError(f"Cannot open video: {video_path}")
+
+fps = cap.get(cv2.CAP_PROP_FPS)
+width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+# Output at desired FPS
+output_path = f"output/{Path(video_path).stem}_{int(output_fps)}fps.mp4"
+fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+out = cv2.VideoWriter(output_path, fourcc, output_fps, (width, height))
+
+# Process at desired frames per second
+step = max(1, int(round(fps))/ output_fps)
+frame_idx = 0
+
+while True:
+    if frame_idx % step != 0:
+        ok = cap.grab()
+        if not ok:
+            break
+        frame_idx += 1
+        continue
+
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    # YOLO detection
+    short_side = min(height, width) if min(height, width) > 0 else 640
+    imgsz = min(640, short_side)
+    yres = yolo_model(frame, conf=conf, verbose=False, device=0 if device.type == "cuda" else "cpu")[0] #got rid of imgsz
+    boxes = yres.boxes
+    if boxes is None or len(boxes) == 0:
+        out.write(frame)
+        frame_idx += 1
+        continue
+
+    # Depth Estimation
+    frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    rgb_tensor = torch.from_numpy(frame_rgb).permute(2,0,1).unsqueeze(0).float().to(memory_format=torch.channels_last)
+    with torch.no_grad():
+        pred = model.infer(rgb_tensor)  # UniDepth handles normalization; no K
+        depth_map = pred["depth"].squeeze()
+
+        # Ensure depth map matches (height, width) for safe box indexing
+        depth_map = torch.nn.functional.interpolate(depth_map[None, None], size=(height, width), mode="nearest").squeeze().float().cpu().numpy()
+
+    H, W = depth_map.shape
+    for box in boxes:
+        x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+        x1, y1 = max(0, x1), max(0, y1)
+        x2, y2 = min(W-1, x2), min(H-1, y2)
+        conf = float(box.conf[0].item())
+        cls_id = int(box.cls[0].item())
+        label = yolo_model.names[cls_id] if hasattr(yolo_model, "names") else "veh"
+
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 2)
+
+        depth_crop = depth_map[y1:y2, x1:x2]
+        valid = depth_crop[np.isfinite(depth_crop) & (depth_crop > 0)]
+        label_text = f"{label} {conf:.2f}, {np.median(valid):.1f}m" if valid.size else f"{label} {conf:.2f}, n/a"
+        cv2.putText(frame, label_text, (x1, max(15, y1-8)), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
+
+    out.write(frame)
+    frame_idx += 1
+
+cap.release()
+out.release()
+cv2.destroyAllWindows()
+print(f"Wrote {output_path}")
