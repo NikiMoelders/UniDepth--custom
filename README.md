@@ -1,3 +1,5 @@
+This repository build on the work of UniDepth from the following papers below. Please consider their original README for more information. https://github.com/lpiccinelli-eth/UniDepth. It provides scripts that combine YOLO with UniDepth for metric depth estimation of detected cars.
+
 > [**UniDepthV2: Universal Monocular Metric Depth Estimation Made Simpler**](https://arxiv.org/abs/2502.20110),  
 > Luigi Piccinelli, Christos Sakaridis, Yung-Hsu Yang, Mattia Segu, Siyuan Li, Wim Abbeloos, Luc Van Gool,  
 > under submission,  
@@ -9,6 +11,8 @@
 > *Paper at [arXiv 2403.18913](https://arxiv.org/pdf/2403.18913.pdf)*  
 
 ## Installation
+
+The following should work on both SSH and Jetson.
 
 Requirements are not in principle hard requirements, but there might be some differences (not tested):
 - Linux
@@ -22,22 +26,10 @@ export NAME=Unidepth
 
 python -m venv $VENV_DIR/$NAME
 source $VENV_DIR/$NAME/bin/activate
-
-# Install UniDepth and dependencies, cuda >11.8 work fine, too.
-pip install -e . --extra-index-url https://download.pytorch.org/whl/cu118
-
-# Install Pillow-SIMD (Optional)
-pip uninstall pillow
-CC="cc -mavx2" pip install -U --force-reinstall pillow-simd
-
-# Install KNN (for evaluation only)
-cd unidepth/ops/knn;bash compile.sh;cd ../../../
 ```
-
-If you use conda, you should change the following: 
+# Install UniDepth and dependencies, cuda >11.8 work fine, too.
 ```shell
-python -m venv $VENV_DIR/$NAME -> conda create -n $NAME python=3.11
-source $VENV_DIR/$NAME/bin/activate -> conda activate $NAME
+pip install -e . --extra-index-url https://download.pytorch.org/whl/cu118
 ```
 
 *Note*: Make sure that your compilation CUDA version and runtime CUDA version match.  
@@ -58,6 +50,9 @@ If you encounter `Segmentation Fault` after running the demo, you may need to un
 ## Depth Estimation + Object Detection
 
 Install Ultralytics into the environment
+```shell
+#Need to put this here!
+```
 
 Have a look at the script folder:
 depth_jetson.py and depth_jetson1.py are optimzed for the Jetson
@@ -69,140 +64,11 @@ The script is set at a YOLO confidence of 0.25, an output FPS of 1 and to run in
 
 To run it: 
 
-````python scripts/depth_jetson1.py````
+```shell
+python scripts/depth_jetson1.py
+```
 
 The annotated video will save in the output folder. If running on an SSH, you will need to download the video onto your local machine to play it.
-
-## Get Started
-
-After installing the dependencies, you can load the pre-trained models easily from [Hugging Face](https://huggingface.co/models?other=UniDepth) as follows:
-
-```python
-from unidepth.models import UniDepthV1
-
-model = UniDepthV1.from_pretrained("lpiccinelli/unidepth-v1-vitl14") # or "lpiccinelli/unidepth-v1-cnvnxtl" for the ConvNext backbone
-```
-
-Then you can generate the metric depth estimation and intrinsics prediction directly from RGB image only as follows:
-
-```python
-import numpy as np
-from PIL import Image
-
-# Move to CUDA, if any
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = model.to(device)
-
-# Load the RGB image and the normalization will be taken care of by the model
-rgb = torch.from_numpy(np.array(Image.open(image_path))).permute(2, 0, 1) # C, H, W
-
-predictions = model.infer(rgb)
-
-# Metric Depth Estimation
-depth = predictions["depth"]
-
-# Point Cloud in Camera Coordinate
-xyz = predictions["points"]
-
-# Intrinsics Prediction
-intrinsics = predictions["intrinsics"]
-```
-
-You can use ground truth intrinsics as input to the model as well:
-```python
-intrinsics_path = "assets/demo/intrinsics.npy"
-
-# Load the intrinsics if available
-intrinsics = torch.from_numpy(np.load(intrinsics_path)) # 3 x 3
-
-# For V2, we defined camera classes. If you pass a 3x3 tensor (as above)
-# it will convert to Pinhole, but you can pass classes from camera.py.
-# The `Camera` class is meant as an abstract, use only child classes as e.g.:
-from unidepth.utils.camera import Pinhole, Fisheye624
-
-camera = Pinhole(K=intrinsics) # pinhole 
-# fill in fisheye, params: fx,fy,cx,cy,d1,d2,d3,d4,d5,d6,t1,t2,s1,s2,s3,s4
-camera = Fisheye624(params=torch.tensor([...]))
-predictions = model.infer(rgb, camera)
-```
-
-To use the forward method for your custom training, you should:  
-1) Take care of the dataloading:  
-  a) ImageNet-normalization  
-  b) Long-edge based resizing (and padding) with input shape provided in `image_shape` under configs  
-  c) `BxCxHxW` format  
-  d) If any intriniscs given, adapt them accordingly to your resizing  
-2) Format the input data structure as:  
-```python
-data = {"image": rgb, "K": intrinsics}
-predictions = model(data, {})
-```
-
-## Model Zoo
-
-The available models are the following:
-
-<table border="0">
-    <tr>
-        <th>Model</th>
-        <th>Backbone</th>
-        <th>Name</th>
-    </tr>
-    <tr>
-        <td rowspan="2"><b>UnidepthV1</b></td>
-        <td>ConvNext-L</td>
-        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v1-cnvnxtl">unidepth-v1-cnvnxtl</a></td>
-    </tr>
-    <tr>
-        <td>ViT-L</td>
-        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v1-vitl14">unidepth-v1-vitl14</a></td>
-    </tr>
-    <hr style="border: 2px solid black;">
-    <tr>
-        <td rowspan="3"><b>UnidepthV2</b></td>
-        <td>ViT-S</td>
-        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2-vits14">unidepth-v2-vits14</a></td>
-    </tr>
-    <tr>
-        <td>ViT-B</td>
-        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2-vitb14">unidepth-v2-vits14</a></td>
-    </tr>
-    <tr>
-        <td>ViT-L</td>
-        <td><a href="https://huggingface.co/lpiccinelli/unidepth-v2-vitl14">unidepth-v2-vitl14</a></td>
-    </tr>
-</table>
-
-Please visit [Hugging Face](https://huggingface.co/lpiccinelli) or click on the links above to access the repo models with weights.
-You can load UniDepth as the following, with `name` variable matching the table above:
-
-```python
-from unidepth.models import UniDepthV1, UniDepthV2
-
-model_v1 = UniDepthV1.from_pretrained(f"lpiccinelli/{name}")
-model_v2 = UniDepthV2.from_pretrained(f"lpiccinelli/{name}")
-```
-
-In addition, we provide loading from TorchHub as:
-
-```python
-version = "v2"
-backbone = "vitl14"
-
-model = torch.hub.load("lpiccinelli-eth/UniDepth", "UniDepth", version=version, backbone=backbone, pretrained=True, trust_repo=True, force_reload=True)
-```
-
-You can look into function `UniDepth` in [hubconf.py](hubconf.py) to see how to instantiate the model from local file: provide a local `path` in line 34.
-
-
-## Training
-
-Please [visit the training README](scripts/README.md) for more information.
-
-## Contributions
-
-If you find any bug in the code, please report to Luigi Piccinelli (lpiccinelli@ethz.ch)
-
 
 ## Citation
 
