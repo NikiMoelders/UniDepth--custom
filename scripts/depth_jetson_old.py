@@ -3,13 +3,6 @@ import numpy as np
 import cv2
 from ultralytics import YOLO
 from unidepth.models import UniDepthV2
-import os
-from pathlib import Path
-
-# Variables
-video_path = "videos/Waterloo.mp4"
-output_fps = 10.0
-conf = 0.25
 
 # Load models
 model = UniDepthV2.from_pretrained("lpiccinelli/unidepth-v2-vitl14")
@@ -18,21 +11,13 @@ yolo_model = YOLO("yolo_models/yolo11n-uav-vehicle-bbox.pt")  # fine-tuned
 # Jetson-friendly settings
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(device).eval()
-try:
-    yolo_model.to(device)
-except Exception:
-    pass 
-try:
-    model.resolution_level = 5
-except Exception:
-    pass
-torch.set_grad_enabled(False)               
-torch.backends.cudnn.benchmark = True        
-torch.backends.cuda.matmul.allow_tf32 = True 
-torch.backends.cudnn.allow_tf32 = True
+model.resolution_level = 5                   
+torch.backends.cudnn.benchmark = True 
 
 # Load video
+video_path = "videos/City.mp4"
 cap = cv2.VideoCapture(video_path)
+
 if not cap.isOpened():
     raise IOError(f"Cannot open video: {video_path}")
 
@@ -40,46 +25,35 @@ fps = cap.get(cv2.CAP_PROP_FPS)
 width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
-# Output at desired FPS
-output_path = f"output/{Path(video_path).stem}_{int(output_fps)}fps.mp4"
+# Output at 1 FPS
+output_path = "output/output_City_jetson.mp4"
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-out = cv2.VideoWriter(output_path, fourcc, output_fps, (width, height))
+out = cv2.VideoWriter(output_path, fourcc, 1.0, (width, height))
 
-# Process at desired frames per second
-step = max(1, int(round(fps))/ output_fps)
+# Process ~1 frame per second
+step = max(1, int(round(fps)))
 frame_idx = 0
 
 while True:
-    if frame_idx % step != 0:
-        ok = cap.grab()
-        if not ok:
-            break
-        frame_idx += 1
-        continue
-
     ret, frame = cap.read()
     if not ret:
         break
-
-    # YOLO detection
-    short_side = min(height, width) if min(height, width) > 0 else 640
-    imgsz = min(640, short_side)
-    yres = yolo_model(frame, conf=conf, verbose=False, device=0 if device.type == "cuda" else "cpu")[0] #got rid of imgsz
-    boxes = yres.boxes
-    if boxes is None or len(boxes) == 0:
-        out.write(frame)
+    if frame_idx % step != 0:   # skip frames
         frame_idx += 1
         continue
 
+    # YOLO detection
+    yres = yolo_model(frame, conf=0.25, imgsz=640, verbose=False)[0]
+    boxes = yres.boxes
+    if boxes is None or len(boxes) == 0:
+        out.write(frame); frame_idx += 1; continue
+
     # Depth Estimation
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    rgb_tensor = torch.from_numpy(frame_rgb).permute(2,0,1).unsqueeze(0).float().to(memory_format=torch.channels_last)
+    rgb_tensor = torch.from_numpy(frame_rgb).permute(2,0,1).unsqueeze(0).float().to(device)
     with torch.no_grad():
-        pred = model.infer(rgb_tensor)  # UniDepth handles normalization; no K
-        depth_map = pred["depth"].squeeze()
-
-        # Ensure depth map matches (height, width) for safe box indexing
-        depth_map = torch.nn.functional.interpolate(depth_map[None, None], size=(height, width), mode="nearest").squeeze().float().cpu().numpy()
+        pred = model.infer(rgb_tensor, camera=None)  # No K
+        depth_map = pred["depth"].squeeze().cpu().numpy()
 
     H, W = depth_map.shape
     for box in boxes:
@@ -103,4 +77,3 @@ while True:
 cap.release()
 out.release()
 cv2.destroyAllWindows()
-print(f"Wrote {output_path}")

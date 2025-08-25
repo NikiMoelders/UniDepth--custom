@@ -1,23 +1,15 @@
-This repository build on the work of UniDepth from the following papers below. Please consider their original README for more information. https://github.com/lpiccinelli-eth/UniDepth. It provides scripts that combine YOLO with UniDepth for metric depth estimation of detected cars.
+# UniDepth + YOLO
 
-> [**UniDepthV2: Universal Monocular Metric Depth Estimation Made Simpler**](https://arxiv.org/abs/2502.20110),  
-> Luigi Piccinelli, Christos Sakaridis, Yung-Hsu Yang, Mattia Segu, Siyuan Li, Wim Abbeloos, Luc Van Gool,  
-> under submission,  
-> *Paper at [arXiv 2502.20110](https://arxiv.org/abs/2502.20110.pdf)*  
-
-> [**UniDepth: Universal Monocular Metric Depth Estimation**](https://arxiv.org/abs/2403.18913),  
-> Luigi Piccinelli, Yung-Hsu Yang, Christos Sakaridis, Mattia Segu, Siyuan Li, Luc Van Gool, Fisher Yu,  
-> CVPR 2024,  
-> *Paper at [arXiv 2403.18913](https://arxiv.org/pdf/2403.18913.pdf)*  
+This repository builds on the work of UniDepth. It is not affiliated with ETH Zurich. Please consider their original [repo](https://github.com/lpiccinelli-eth/UniDepth) and [paper](https://arxiv.org/abs/2502.20110) for more information. 
 
 ## Installation
-
-The following should work on both SSH and Jetson.
 
 Requirements are not in principle hard requirements, but there might be some differences (not tested):
 - Linux
 - Python 3.10+ 
 - CUDA 11.8+
+
+The following should work on both SSH and Jetson.
 
 Install the environment needed to run UniDepth with:
 ```shell
@@ -27,7 +19,7 @@ export NAME=Unidepth
 python -m venv $VENV_DIR/$NAME
 source $VENV_DIR/$NAME/bin/activate
 ```
-# Install UniDepth and dependencies, cuda >11.8 work fine, too.
+## Install UniDepth and dependencies, cuda >11.8 work fine, too.
 ```shell
 pip install -e . --extra-index-url https://download.pytorch.org/whl/cu118
 ```
@@ -51,26 +43,29 @@ If you encounter `Segmentation Fault` after running the demo, you may need to un
 
 Install Ultralytics into the environment
 ```shell
-#Need to put this here!
+pip install ultralytics
 ```
+- [Scripts](scripts)
+  - [depth_jetson.py](scripts/depth_jetson.py) is optimzed for the Jetson
+  - [depth.py](scripts/depth.py) gives the best results, try on SSH but not recommended for Jetson
 
-Have a look at the script folder:
-depth_jetson.py and depth_jetson1.py are optimzed for the Jetson
-depth.py gives the best results but extremely slow on Jetson
+- [YOLO Weights](yolo_models)
+  - A fine-tuned YOLO model is employed- [yolo11n-uav-vehicle-bbox.pt](yolo_models/yolo11n-uav-vehicle-bbox.pt)
+  - Optional: employ out of the box models such as [yolov8m.pt](yolo_models/yolov8m.pt) or [yolov8n.pt](yolo_models/yolov8n.pt)
 
-Focusing on depth_jetson1.py:
-
-The script is set at a YOLO confidence of 0.25, an output FPS of 1 and to run inference on the waterloo video.
-
-To run it: 
+- Inference
 
 ```shell
-python scripts/depth_jetson1.py
+python scripts/depth_jetson.py
 ```
+or similarly
 
+```shell
+python scripts/depth_jetson.py --video videos/video_name.mp4 --fps desired fps --conf desired confidence 
+```
 The annotated video will save in the output folder. If running on an SSH, you will need to download the video onto your local machine to play it.
 
-## Citation
+## Citation (All from original README)
 
 If you find our work useful in your research please consider citing our publications:
 ```bibtex
@@ -101,6 +96,6 @@ This software is released under Creatives Common BY-NC 4.0 license. You can view
 
 ## Acknowledgement
 
-We would like to express our gratitude to [@niels](https://huggingface.co/nielsr) for helping intergrating UniDepth in HuggingFace.
+We would like to express our gratitude to [@niels](https://huggingface.co/nielsr) for helping integrating UniDepth in HuggingFace.
 
 This work is funded by Toyota Motor Europe via the research project [TRACE-Zurich](https://trace.ethz.ch) (Toyota Research on Automated Cars Europe).
