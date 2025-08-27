@@ -45,11 +45,11 @@ Install Ultralytics into the environment
 ```shell
 pip install ultralytics
 ```
-- [Scripts](scripts)
+- Scripts
   - [depth_jetson.py](scripts/depth_jetson.py) is optimzed for the Jetson
   - [depth.py](scripts/depth.py) gives the best results, try on SSH but not recommended for Jetson
 
-- [YOLO Weights](yolo_models)
+- YOLO Weights
   - A fine-tuned YOLO model is employed- [yolo11n-uav-vehicle-bbox.pt](yolo_models/yolo11n-uav-vehicle-bbox.pt)
   - Optional: employ out of the box models such as [yolov8m.pt](yolo_models/yolov8m.pt) or [yolov8n.pt](yolo_models/yolov8n.pt)
 

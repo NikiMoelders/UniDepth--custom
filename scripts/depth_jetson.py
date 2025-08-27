@@ -82,10 +82,8 @@ while True:
     frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     rgb_tensor = torch.from_numpy(frame_rgb).permute(2,0,1).unsqueeze(0).float().to(memory_format=torch.channels_last)
     with torch.no_grad():
-        pred = model.infer(rgb_tensor)  # UniDepth handles normalization; no K
+        pred = model.infer(rgb_tensor) 
         depth_map = pred["depth"].squeeze()
-
-        # Ensure depth map matches (height, width) for safe box indexing
         depth_map = torch.nn.functional.interpolate(depth_map[None, None], size=(height, width), mode="nearest").squeeze().float().cpu().numpy()
 
     H, W = depth_map.shape
@@ -95,10 +93,9 @@ while True:
         x2, y2 = min(W-1, x2), min(H-1, y2)
         conf = float(box.conf[0].item())
         cls_id = int(box.cls[0].item())
-        label = yolo_model.names[cls_id] if hasattr(yolo_model, "names") else "veh"
+        label = yolo_model.names[cls_id] 
 
         cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 2)
-
         depth_crop = depth_map[y1:y2, x1:x2]
         valid = depth_crop[np.isfinite(depth_crop) & (depth_crop > 0)]
         label_text = f"{label} {conf:.2f}, {np.median(valid):.1f}m" if valid.size else f"{label} {conf:.2f}, n/a"
