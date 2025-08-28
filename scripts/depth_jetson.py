@@ -6,6 +6,7 @@ from unidepth.models import UniDepthV2
 import os
 from pathlib import Path
 import argparse
+import time
 
 parser = argparse.ArgumentParser(description="YOLO + UniDepth on video")
 parser.add_argument("--video", "-v", default="videos/Waterloo.mp4", help="Path to input video, default videos/Waterloo.mp4")
@@ -57,6 +58,7 @@ step = max(1, int(round(fps))/ output_fps)
 frame_idx = 0
 
 while True:
+    start_time = time.time()
     if frame_idx % step != 0:
         ok = cap.grab()
         if not ok:
@@ -103,6 +105,8 @@ while True:
 
     out.write(frame)
     frame_idx += 1
+    elapsed = time.time() - start_time
+    print(f"Processed frame {frame_idx}, time: {elapsed:.2f} s")
 
 cap.release()
 out.release()

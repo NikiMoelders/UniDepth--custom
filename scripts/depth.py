@@ -7,7 +7,7 @@ from unidepth.utils import colorize
 import cv2
 from unidepth.utils.camera import Pinhole
 
-#focal length of 925, need to check this, giving a depth of 0m roughly
+# focal length of 925, need to check this, giving a depth of 0m roughly
 # Load models
 model = UniDepthV2.from_pretrained("lpiccinelli/unidepth-v2-vitl14")
 yolo_model = YOLO("yolo_models/yolo11n-uav-vehicle-bbox.pt") # This is fine tuned
